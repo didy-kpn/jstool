@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Text Diff Tool</title>
+    <style>
+      :root {
+        --bg: #f5f7fb;
+        --card: #ffffff;
+        --text: #1f2937;
+        --muted: #6b7280;
+        --line: #d1d5db;
+        --accent: #0f766e;
+        --accent-soft: #d1fae5;
+        --added: #dafbe1;
+        --removed: #ffebe9;
+        --added-strong: #aceebb;
+        --removed-strong: #ffcecb;
+        --gh-subtle: #f6f8fa;
+        --gh-border: #d0d7de;
+        --gh-text: #24292f;
+        --gh-muted: #57606a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+        background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 35%);
+        color: var(--text);
+      }
+
+      .container {
+        max-width: none;
+        margin: 0 auto;
+        padding: 24px 16px 48px;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 24px;
+      }
+
+      .desc {
+        margin: 0 0 16px;
+        color: var(--muted);
+      }
+
+      .drop-wrapper {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      .drop-zone {
+        border: 2px dashed var(--line);
+        background: var(--card);
+        border-radius: 12px;
+        min-height: 120px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        cursor: pointer;
+        transition: 0.2s;
+      }
+
+      .drop-zone.active {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+      }
+
+      .drop-zone .title {
+        font-weight: 700;
+        margin-bottom: 6px;
+      }
+
+      .drop-zone .file {
+        font-size: 13px;
+        color: var(--muted);
+        word-break: break-all;
+      }
+
+      .hint {
+        margin: 0 0 12px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .paste-wrapper {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+
+      .paste-card {
+        background: var(--card);
+        border: 1px solid var(--gh-border);
+        border-radius: 8px;
+        padding: 10px;
+      }
+
+      .paste-card label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 13px;
+        color: var(--gh-muted);
+      }
+
+      .paste-box {
+        width: 100%;
+        min-height: 120px;
+        border: 1px solid var(--gh-border);
+        border-radius: 8px;
+        padding: 8px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 13px;
+        line-height: 1.4;
+        resize: vertical;
+      }
+
+      .paste-actions {
+        margin-top: 8px;
+      }
+
+      .actions {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 14px;
+      }
+
+      button {
+        border: 1px solid var(--line);
+        background: var(--card);
+        padding: 8px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+
+      button:hover {
+        border-color: #9ca3af;
+      }
+
+      .status {
+        min-height: 22px;
+        margin: 0 0 12px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .table-wrap {
+        border: 1px solid var(--gh-border);
+        border-radius: 8px;
+        overflow-x: hidden;
+        overflow-y: auto;
+        background: var(--card);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+
+      col.col-line {
+        width: 56px;
+      }
+
+      col.col-content {
+        width: calc((100% - 112px) / 2);
+      }
+
+      thead th {
+        background: var(--gh-subtle);
+        font-size: 13px;
+        font-weight: 700;
+        padding: 8px;
+        border-bottom: 1px solid var(--gh-border);
+        color: var(--gh-text);
+        text-align: left;
+      }
+
+      tbody td {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 13px;
+        line-height: 1.45;
+        border-bottom: 1px solid #d8dee4;
+        vertical-align: top;
+      }
+
+      tbody tr:last-child td {
+        border-bottom: none;
+      }
+
+      .line-no {
+        width: 56px;
+        padding: 4px 8px;
+        color: var(--gh-muted);
+        text-align: right;
+        background: var(--gh-subtle);
+        border-right: 1px solid var(--gh-border);
+        user-select: none;
+      }
+
+      .content {
+        min-width: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        padding: 4px 8px 4px 24px;
+        position: relative;
+      }
+
+      .content::before {
+        position: absolute;
+        left: 8px;
+        top: 4px;
+        color: var(--gh-muted);
+        content: attr(data-sign);
+      }
+
+      tr.same td.content {
+        background: #ffffff;
+      }
+
+      tr.added td.content.right,
+      tr.added td.line-no.right {
+        background: var(--added);
+      }
+
+      tr.removed td.content.left,
+      tr.removed td.line-no.left {
+        background: var(--removed);
+      }
+
+      tr.added td.content.right::before {
+        content: "+";
+        color: #1a7f37;
+        font-weight: 700;
+      }
+
+      tr.removed td.content.left::before {
+        content: "-";
+        color: #cf222e;
+        font-weight: 700;
+      }
+
+      .content.empty::before {
+        content: "";
+      }
+
+      .line-no.empty,
+      .content.empty {
+        background: #ffffff;
+      }
+
+      .inner-add {
+        background: var(--added-strong);
+      }
+
+      .inner-del {
+        background: var(--removed-strong);
+      }
+
+      @media (max-width: 800px) {
+        .drop-wrapper,
+        .paste-wrapper {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <h1>Text Diff Tool</h1>
+      <p class="desc">2つのテキストをドラッグ＆ドロップまたはコピペで指定し、差分を表示します。</p>
+
+      <div class="drop-wrapper" id="dropWrapper">
+        <div class="drop-zone" data-slot="0" id="zoneA">
+          <div class="title">ファイル A</div>
+          <div class="file" id="fileAName">ここへドロップ / クリックして選択</div>
+        </div>
+        <div class="drop-zone" data-slot="1" id="zoneB">
+          <div class="title">ファイル B</div>
+          <div class="file" id="fileBName">ここへドロップ / クリックして選択</div>
+        </div>
+      </div>
+
+      <p class="hint">補足: 画面上に2ファイルを同時にドロップしても読み込めます。</p>
+
+      <div class="paste-wrapper">
+        <div class="paste-card">
+          <label for="pasteA">ファイル A (コピペ)</label>
+          <textarea
+            id="pasteA"
+            class="paste-box"
+            placeholder="ここに Ctrl+V / Cmd+V で貼り付け"
+          ></textarea>
+          <div class="paste-actions">
+            <button id="applyPasteA" type="button">A に適用</button>
+          </div>
+        </div>
+        <div class="paste-card">
+          <label for="pasteB">ファイル B (コピペ)</label>
+          <textarea
+            id="pasteB"
+            class="paste-box"
+            placeholder="ここに Ctrl+V / Cmd+V で貼り付け"
+          ></textarea>
+          <div class="paste-actions">
+            <button id="applyPasteB" type="button">B に適用</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="swapBtn" type="button">A/B 入れ替え</button>
+        <button id="clearBtn" type="button">クリア</button>
+      </div>
+
+      <p class="status" id="status">ファイルまたは貼り付け入力を待機中です。</p>
+
+      <div class="table-wrap">
+        <table>
+          <colgroup>
+            <col class="col-line" />
+            <col class="col-content" />
+            <col class="col-line" />
+            <col class="col-content" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>A 行</th>
+              <th id="headA">ファイル A</th>
+              <th>B 行</th>
+              <th id="headB">ファイル B</th>
+            </tr>
+          </thead>
+          <tbody id="diffBody"></tbody>
+        </table>
+      </div>
+    </main>
+
+    <input id="fileInputA" type="file" hidden />
+    <input id="fileInputB" type="file" hidden />
+
+    <script src="https://cdn.jsdelivr.net/npm/diff@8.0.3/dist/diff.min.js"></script>
+    <script>
+      const files = [null, null];
+      const texts = ["", ""];
+      const sourceNames = ["", ""];
+      const hasSource = [false, false];
+
+      const zoneA = document.getElementById("zoneA");
+      const zoneB = document.getElementById("zoneB");
+      const fileAName = document.getElementById("fileAName");
+      const fileBName = document.getElementById("fileBName");
+      const fileInputA = document.getElementById("fileInputA");
+      const fileInputB = document.getElementById("fileInputB");
+      const statusEl = document.getElementById("status");
+      const diffBody = document.getElementById("diffBody");
+      const dropWrapper = document.getElementById("dropWrapper");
+      const swapBtn = document.getElementById("swapBtn");
+      const clearBtn = document.getElementById("clearBtn");
+      const headA = document.getElementById("headA");
+      const headB = document.getElementById("headB");
+      const pasteA = document.getElementById("pasteA");
+      const pasteB = document.getElementById("pasteB");
+      const applyPasteA = document.getElementById("applyPasteA");
+      const applyPasteB = document.getElementById("applyPasteB");
+
+      [zoneA, zoneB].forEach((zone) => {
+        zone.addEventListener("click", () => {
+          const slot = Number(zone.dataset.slot);
+          (slot === 0 ? fileInputA : fileInputB).click();
+        });
+
+        ["dragenter", "dragover"].forEach((evt) => {
+          zone.addEventListener(evt, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            zone.classList.add("active");
+          });
+        });
+
+        ["dragleave", "drop"].forEach((evt) => {
+          zone.addEventListener(evt, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            zone.classList.remove("active");
+          });
+        });
+
+        zone.addEventListener("drop", (e) => {
+          const slot = Number(zone.dataset.slot);
+          const droppedFiles = Array.from(e.dataTransfer.files || []);
+          if (droppedFiles.length > 0) {
+            setFile(slot, droppedFiles[0]);
+          }
+        });
+      });
+
+      ["dragenter", "dragover", "dragleave", "drop"].forEach((evt) => {
+        window.addEventListener(evt, (e) => {
+          e.preventDefault();
+        });
+      });
+
+      window.addEventListener("drop", (e) => {
+        const droppedFiles = Array.from(e.dataTransfer.files || []);
+        if (droppedFiles.length >= 2) {
+          setFile(0, droppedFiles[0]);
+          setFile(1, droppedFiles[1]);
+        }
+      });
+
+      dropWrapper.addEventListener("dragenter", () => {
+        zoneA.classList.add("active");
+        zoneB.classList.add("active");
+      });
+
+      dropWrapper.addEventListener("dragleave", () => {
+        zoneA.classList.remove("active");
+        zoneB.classList.remove("active");
+      });
+
+      fileInputA.addEventListener("change", (e) => {
+        const f = e.target.files && e.target.files[0];
+        if (f) setFile(0, f);
+      });
+
+      fileInputB.addEventListener("change", (e) => {
+        const f = e.target.files && e.target.files[0];
+        if (f) setFile(1, f);
+      });
+
+      applyPasteA.addEventListener("click", () => {
+        setPastedText(0, pasteA.value);
+      });
+
+      applyPasteB.addEventListener("click", () => {
+        setPastedText(1, pasteB.value);
+      });
+
+      [
+        [pasteA, 0],
+        [pasteB, 1],
+      ].forEach(([area, slot]) => {
+        area.addEventListener("paste", () => {
+          setTimeout(() => {
+            setPastedText(slot, area.value, true);
+          }, 0);
+        });
+      });
+
+      swapBtn.addEventListener("click", () => {
+        [files[0], files[1]] = [files[1], files[0]];
+        [texts[0], texts[1]] = [texts[1], texts[0]];
+        [sourceNames[0], sourceNames[1]] = [sourceNames[1], sourceNames[0]];
+        [hasSource[0], hasSource[1]] = [hasSource[1], hasSource[0]];
+        [pasteA.value, pasteB.value] = [pasteB.value, pasteA.value];
+        refreshFileNames();
+        tryRenderDiff();
+      });
+
+      clearBtn.addEventListener("click", () => {
+        files[0] = null;
+        files[1] = null;
+        texts[0] = "";
+        texts[1] = "";
+        sourceNames[0] = "";
+        sourceNames[1] = "";
+        hasSource[0] = false;
+        hasSource[1] = false;
+        pasteA.value = "";
+        pasteB.value = "";
+        refreshFileNames();
+        diffBody.innerHTML = "";
+        statusEl.textContent = "ファイルまたは貼り付け入力を待機中です。";
+      });
+
+      async function setFile(slot, file) {
+        files[slot] = file;
+        refreshFileNames();
+        statusEl.textContent = `読み込み中: ${file.name}`;
+
+        try {
+          texts[slot] = await file.text();
+          sourceNames[slot] = file.name;
+          hasSource[slot] = true;
+          if (slot === 0) {
+            pasteA.value = texts[slot];
+          } else {
+            pasteB.value = texts[slot];
+          }
+          statusEl.textContent = `${file.name} を読み込みました。`;
+          refreshFileNames();
+          tryRenderDiff();
+        } catch (err) {
+          statusEl.textContent = `読み込みに失敗しました: ${file.name}`;
+          console.error(err);
+        }
+      }
+
+      function setPastedText(slot, text, fromPaste = false) {
+        files[slot] = null;
+        texts[slot] = text;
+        sourceNames[slot] = slot === 0 ? "貼り付けテキスト A" : "貼り付けテキスト B";
+        hasSource[slot] = true;
+        refreshFileNames();
+        statusEl.textContent = fromPaste
+          ? `${sourceNames[slot]} を貼り付けで更新しました。`
+          : `${sourceNames[slot]} を更新しました。`;
+        tryRenderDiff();
+      }
+
+      function refreshFileNames() {
+        fileAName.textContent = hasSource[0] ? sourceNames[0] : "ここへドロップ / クリックして選択";
+        fileBName.textContent = hasSource[1] ? sourceNames[1] : "ここへドロップ / クリックして選択";
+        headA.textContent = hasSource[0] ? sourceNames[0] : "ファイル A";
+        headB.textContent = hasSource[1] ? sourceNames[1] : "ファイル B";
+      }
+
+      function tryRenderDiff() {
+        if (!hasSource[0] || !hasSource[1]) {
+          statusEl.textContent =
+            "A/B の両方にファイルまたは貼り付けテキストを指定すると差分を表示します。";
+          return;
+        }
+
+        if (!window.Diff || typeof window.Diff.diffLines !== "function") {
+          statusEl.textContent = "jsdiff の読み込みに失敗しました。再読み込みしてください。";
+          return;
+        }
+
+        const ops = lineDiffWithJsDiff(texts[0], texts[1]);
+        render(ops);
+
+        statusEl.textContent = `差分表示: ${sourceNames[0]} ↔ ${sourceNames[1]}`;
+      }
+
+      function normalizeNewlines(text) {
+        return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      }
+
+      function lineDiffWithJsDiff(leftText, rightText) {
+        const changes = window.Diff.diffLines(
+          normalizeNewlines(leftText),
+          normalizeNewlines(rightText),
+        );
+        const ops = [];
+
+        function toLines(chunk) {
+          if (!chunk) return [];
+          const lines = chunk.split("\n");
+          if (lines.length > 0 && lines[lines.length - 1] === "") {
+            lines.pop();
+          }
+          return lines;
+        }
+
+        for (const change of changes) {
+          for (const line of toLines(change.value)) {
+            if (change.added) {
+              ops.push({ type: "added", left: "", right: line });
+            } else if (change.removed) {
+              ops.push({ type: "removed", left: line, right: "" });
+            } else {
+              ops.push({ type: "same", left: line, right: line });
+            }
+          }
+        }
+        return ops;
+      }
+
+      function escapeHtml(value) {
+        return value
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function buildInlineHighlight(leftText, rightText) {
+        const parts = window.Diff.diffChars(leftText, rightText);
+        let left = "";
+        let right = "";
+        for (const part of parts) {
+          const safe = escapeHtml(part.value);
+          if (part.added) {
+            right += `<span class="inner-add">${safe}</span>`;
+          } else if (part.removed) {
+            left += `<span class="inner-del">${safe}</span>`;
+          } else {
+            left += safe;
+            right += safe;
+          }
+        }
+        return { left, right };
+      }
+
+      function render(ops) {
+        diffBody.innerHTML = "";
+
+        let leftNo = 1;
+        let rightNo = 1;
+
+        function appendRow(type, leftValue, rightValue) {
+          const tr = document.createElement("tr");
+          tr.className = type;
+
+          const leftLineNo = document.createElement("td");
+          leftLineNo.className = "line-no left";
+          const leftContent = document.createElement("td");
+          leftContent.className = "content left";
+
+          const rightLineNo = document.createElement("td");
+          rightLineNo.className = "line-no right";
+          const rightContent = document.createElement("td");
+          rightContent.className = "content right";
+
+          const hasLeft = leftValue != null;
+          const hasRight = rightValue != null;
+
+          leftLineNo.textContent = hasLeft ? String(leftNo++) : "";
+          rightLineNo.textContent = hasRight ? String(rightNo++) : "";
+
+          leftContent.dataset.sign = hasLeft && type === "removed" ? "-" : " ";
+          rightContent.dataset.sign = hasRight && type === "added" ? "+" : " ";
+
+          if (hasLeft && leftValue.html != null) {
+            leftContent.innerHTML = leftValue.html;
+          } else {
+            leftContent.textContent = hasLeft ? leftValue.text : "";
+          }
+          if (hasRight && rightValue.html != null) {
+            rightContent.innerHTML = rightValue.html;
+          } else {
+            rightContent.textContent = hasRight ? rightValue.text : "";
+          }
+
+          if (!hasLeft) {
+            leftLineNo.classList.add("empty");
+            leftContent.classList.add("empty");
+            leftContent.dataset.sign = "";
+          }
+          if (!hasRight) {
+            rightLineNo.classList.add("empty");
+            rightContent.classList.add("empty");
+            rightContent.dataset.sign = "";
+          }
+
+          tr.append(leftLineNo, leftContent, rightLineNo, rightContent);
+          diffBody.appendChild(tr);
+        }
+
+        let i = 0;
+        while (i < ops.length) {
+          if (ops[i].type === "same") {
+            appendRow("same", { text: ops[i].left }, { text: ops[i].right });
+            i += 1;
+            continue;
+          }
+
+          const removedLines = [];
+          const addedLines = [];
+          while (i < ops.length && ops[i].type !== "same") {
+            if (ops[i].type === "removed") {
+              removedLines.push(ops[i].left);
+            } else {
+              addedLines.push(ops[i].right);
+            }
+            i += 1;
+          }
+
+          if (removedLines.length > 0 && addedLines.length > 0) {
+            const size = Math.max(removedLines.length, addedLines.length);
+            for (let idx = 0; idx < size; idx += 1) {
+              const left = removedLines[idx];
+              const right = addedLines[idx];
+
+              if (left != null && right != null) {
+                const hl = buildInlineHighlight(left, right);
+                appendRow("removed added", { html: hl.left }, { html: hl.right });
+              } else if (left != null) {
+                appendRow("removed", { text: left }, null);
+              } else {
+                appendRow("added", null, { text: right });
+              }
+            }
+            continue;
+          }
+
+          if (removedLines.length > 0) {
+            for (const left of removedLines) {
+              appendRow("removed", { text: left }, null);
+            }
+          } else {
+            for (const right of addedLines) {
+              appendRow("added", null, { text: right });
+            }
+          }
+        }
+      }
+    </script>
+  </body>
+</html>

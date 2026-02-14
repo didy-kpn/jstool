@@ -1,4 +1,5 @@
 const tools = [
+  { name: "diff-viewer", href: "./diff-viewer/index.html", description: "テキスト差分を比較表示" },
   // 例:
   // { name: "JSON 整形", href: "./tools/json-formatter/index.html", description: "JSON を見やすく整形" },
 ];
