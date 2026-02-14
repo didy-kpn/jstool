@@ -1,5 +1,10 @@
 const tools = [
   { name: "diff-viewer", href: "./diff-viewer/index.html", description: "テキスト差分を比較表示" },
+  {
+    name: "realtime-strcount",
+    href: "./realtime-strcount/index.html",
+    description: "リアルタイム文字数カウント",
+  },
   // 例:
   // { name: "JSON 整形", href: "./tools/json-formatter/index.html", description: "JSON を見やすく整形" },
 ];
