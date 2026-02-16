@@ -67,25 +67,43 @@ HTML + CSS + JavaScript だけで動作する、ブラウザ向けのシンプ�
 記号定義:
 
 - `clamp01(x) = min(max(x, 0), 1)`
-- `totalContentChars`: 空白（半角/全角空白、改行など）を除いた総文字数
-- `sentenceLengths = [len_1, len_2, ...]`（各文の空白除去後文字数）
+- `totalContentChars`: 空白 `[\s\u3000]` と括弧文字 `「」『』"` を除いた総文字数
+- `sentenceLengths = [len_1, len_2, ...]`（各文の空白・括弧除去後文字数）
+
+前処理:
+
+- 改行は `\r\n` / `\r` を `\n` に正規化
+- 章区切りに使う行（`#`見出し行 / `◆`行 / 任意区切り文字行）は
+  - 章タイトルとして保持
+  - 分析対象テキストから除外
+- ルビ除去オプション ON 時:
+  - `｜` を除去
+  - `《...》` を除去
 
 台詞・地の文:
 
-- 文字単位で台詞フラグを付与
-  - 標準対応: `「...」`, `『...』`
-  - オプション: `"..."`（ON時）
-- 行 `i` の台詞率:
-  - `lineDialogueRatio_i = dialogueCharsInLine_i / nonWhitespaceCharsInLine_i`
+- 対応括弧:
+  - 標準: `「...」`, `『...』`
+  - オプション ON: `"..."`（半角二重引用符）
+- 台詞フラグはスタック方式（入れ子可）
+- 括弧文字自体（`「」『』"`）は文字数カウントから除外
+- 未閉じ括弧がある場合も計算継続し、`unclosedJapanese` / `unclosedAscii` を警告表示
+- 行 `i` の集計:
+  - `lineContentChars_i` = 空白・括弧除去後の行文字数
+  - `lineDialogueChars_i` = 台詞フラグが立った行文字数
+  - `lineDialogueRatio_i = lineDialogueChars_i / lineContentChars_i`（分母0なら0）
 - 行分類:
-  - `lineDialogueRatio_i >= 0.5` なら台詞行、それ以外は地の文行
+  - 行頭（trim後）が `「` / `『`（オプションON時は `"` も）なら台詞行
+  - それ以外は `lineDialogueRatio_i >= dialogueLineThreshold`（既定 0.60）で台詞行
 - 全体比率:
   - `dialogueCharRatio = dialogueChars / (dialogueChars + narrationChars)`（分母0なら0）
   - `dialogueLineRatio = dialogueLines / (dialogueLines + narrationLines)`（分母0なら0）
 
 読みやすさ:
 
-- 文分割: `。！？!?` または改行で文を区切る
+- 文分割:
+  - 既定: `。！？!?` または改行
+  - 折り返し改行無視 ON: `。！？!?` のみ
 - 文長:
   - `avgSentenceLen = sum(sentenceLengths) / sentenceCount`（`sentenceCount=0` なら0）
   - `medianSentenceLen = sentenceLengths` の中央値
@@ -93,46 +111,52 @@ HTML + CSS + JavaScript だけで動作する、ブラウザ向けのシンプ�
   - `longSentenceRate = count(len_i >= 80) / sentenceCount`（`sentenceCount=0` なら0）
   - `shortSentenceRate = count(len_i <= 40) / sentenceCount`（`sentenceCount=0` なら0）
 - 密度・文字種比率:
-  - `punctuationDensity = (count("、","。") / totalContentChars) * 100`（分母0なら0）
+  - `punctuationCount = count("、","。","！","？","!","?")`
+  - `punctuationDensity = (punctuationCount / totalContentChars) * 100`（分母0なら0）
   - `newlineDensity = (newlineCount / totalContentChars) * 100`（分母0なら0）
+  - `blanklineDensity = (blanklineCount / totalContentChars) * 100`（分母0なら0）
   - `kanjiRatio = kanjiCount / totalContentChars`（分母0なら0）
   - `hiraganaRatio = hiraganaCount / totalContentChars`（分母0なら0）
   - `katakanaRatio = katakanaCount / totalContentChars`（分母0なら0）
+  - `otherRatio = 1 - (kanjiRatio + hiraganaRatio + katakanaRatio)`（0-1に clamp）
 
 合成スコア:
 
 - 句読点不足ペナルティ:
-  - `punctuationShortage = max(0, 4 - punctuationDensity) / 4`（`totalContentChars=0` なら0）
+  - `punctuationShortage = max(0, P0 - punctuationDensity) / P0`（`P0` 既定6.0、UI調整可）
 - テンポ指数（0-100）:
-  - `tempoIndex = clamp01(0.45*shortSentenceRate + 0.20*min(newlineDensity/12, 1) + 0.35*dialogueCharRatio) * 100`
+  - `tempoNewlineDensity = ignoreWrap ? blanklineDensity : newlineDensity`
+  - `tempoIndex = clamp01(0.45*shortSentenceRate + 0.20*min(tempoNewlineDensity/12, 1) + 0.35*dialogueCharRatio) * 100`
 - 負荷指数（0-100）:
   - `loadIndex = clamp01(0.45*longSentenceRate + 0.35*kanjiRatio + 0.20*punctuationShortage) * 100`
 
 文体度（文学度 / ライトノベル度 / Web小説度）:
 
+- 二重カウント回避のため、`tempoIndex` / `loadIndex` は文体判定の特徴量に直接使わない
 - 特徴量（0-1へ正規化）:
   - `f_dialogue = clamp01(dialogueCharRatio)`
-  - `f_newline = clamp01(newlineDensity / 10)`
-  - `f_shortness = clamp01(1 - avgSentenceLen / 90)`
-  - `f_heavy = clamp01(loadIndex / 100)`
+  - `f_newline = clamp01((ignoreWrap ? blanklineDensity : newlineDensity) / 10)`
+  - `f_shortness = clamp01(1 - medianSentenceLen / 90)`
+  - `f_long = clamp01(longSentenceRate)`
   - `f_kanji = clamp01(kanjiRatio / 0.5)`
-  - `f_tempo = clamp01(tempoIndex / 100)`
+  - `f_punctAdeq = clamp01(1 - punctuationShortage)`
 - 重み:
-  - `w_dialogue=1.2, w_newline=0.9, w_shortness=1.0, w_heavy=1.1, w_kanji=1.0, w_tempo=1.2`
-  - `W = 1.2+0.9+1.0+1.1+1.0+1.2 = 6.4`
-- 文体ごとの目標値 `t_style,k`:
-  - 文学: `(0.20, 0.18, 0.28, 0.72, 0.72, 0.35)`
-  - ライトノベル: `(0.42, 0.35, 0.58, 0.38, 0.45, 0.64)`
-  - Web小説: `(0.56, 0.62, 0.72, 0.25, 0.34, 0.82)`
-  - 順序は `(dialogue, newline, shortness, heavy, kanji, tempo)`
+  - `w_dialogue=1.2, w_newline=1.0, w_shortness=1.1, w_long=1.1, w_kanji=1.0, w_punctAdeq=1.0`
+  - `W = 6.4`
+- 文体ごとの目標値 `t_style,k`（順序: `dialogue, newline, shortness, long, kanji, punctAdeq`）:
+  - 文学: `(0.20, 0.18, 0.28, 0.62, 0.72, 0.78)`
+  - ライトノベル: `(0.42, 0.35, 0.58, 0.35, 0.45, 0.72)`
+  - Web小説: `(0.56, 0.62, 0.72, 0.22, 0.34, 0.68)`
 - 距離と生スコア:
   - `distance_style = Σ_k |f_k - t_style,k| * w_k`
   - `raw_style = max(0, 1 - distance_style / W)`
 - 最終スコア（%）:
   - `score_style = raw_style / (raw_literary + raw_lightNovel + raw_webNovel) * 100`
   - 生スコア合計が0なら全スタイル0%
-- 傾向判定:
-  - `argmax(score_literary, score_lightNovel, score_webNovel)` を採用
+- 傾向判定と信頼度:
+  - 判定: `argmax(score_literary, score_lightNovel, score_webNovel)`
+  - `confidence = topScore - secondScore`
+  - `confidence < 8` の場合は「判定弱」を付与
 
 ### 表示仕様
 
