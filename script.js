@@ -5,6 +5,11 @@ const tools = [
     href: "./realtime-strcount/index.html",
     description: "リアルタイム文字数カウント",
   },
+  {
+    name: "manuscript-metrics",
+    href: "./manuscript-metrics/index.html",
+    description: "原稿メトリクス診断（台詞比率・読みやすさ・章別推移）",
+  },
   // 例:
   // { name: "JSON 整形", href: "./tools/json-formatter/index.html", description: "JSON を見やすく整形" },
 ];

@@ -1,0 +1,1073 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>原稿メトリクス診断</title>
+    <style>
+      :root {
+        --bg: #f5f7fb;
+        --card: #ffffff;
+        --text: #1f2937;
+        --muted: #6b7280;
+        --line: #d1d5db;
+        --accent: #0f766e;
+        --gh-border: #d0d7de;
+        --gh-text: #24292f;
+        --gh-muted: #57606a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+        background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 35%);
+        color: var(--text);
+      }
+
+      .container {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 24px 16px 48px;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 24px;
+      }
+
+      .desc {
+        margin: 0 0 16px;
+        color: var(--muted);
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        align-items: stretch;
+      }
+
+      .editor-card,
+      .stats-panel,
+      .chart-card {
+        background: var(--card);
+        border: 1px solid var(--gh-border);
+        border-radius: 8px;
+        padding: 12px;
+      }
+
+      .editor-card {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .editor-card label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 13px;
+        color: var(--gh-muted);
+      }
+
+      .text-box {
+        width: 100%;
+        min-height: 360px;
+        flex: 1;
+        border: 1px solid var(--gh-border);
+        border-radius: 8px;
+        padding: 10px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 14px;
+        line-height: 1.5;
+        resize: vertical;
+      }
+
+      .controls {
+        margin-top: 12px;
+        display: grid;
+        gap: 8px;
+      }
+
+      .control-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      .control-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .control-group select,
+      .control-group input[type="text"],
+      .control-group input[type="file"] {
+        border: 1px solid var(--gh-border);
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-size: 13px;
+        background: #fff;
+      }
+
+      .inline-check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--gh-text);
+      }
+
+      .actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      button {
+        border: 1px solid var(--line);
+        background: var(--card);
+        padding: 8px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+
+      button:hover {
+        border-color: #9ca3af;
+      }
+
+      .hint {
+        margin: 0;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .stats-title,
+      .section-title {
+        margin: 0 0 10px;
+        font-size: 14px;
+        color: var(--gh-muted);
+      }
+
+      .pane-grid {
+        display: grid;
+        gap: 10px;
+      }
+
+      .pane {
+        border: 1px solid var(--gh-border);
+        border-radius: 8px;
+        padding: 10px;
+        background: #fff;
+      }
+
+      .pane h3 {
+        margin: 0 0 8px;
+        font-size: 13px;
+        color: var(--gh-muted);
+      }
+
+      .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .metric-card {
+        border: 1px solid var(--gh-border);
+        border-radius: 8px;
+        padding: 8px;
+        background: #fff;
+      }
+
+      .metric-card dt {
+        margin: 0;
+        font-size: 12px;
+        color: var(--gh-muted);
+      }
+
+      .metric-card dd {
+        margin: 6px 0 0;
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--gh-text);
+      }
+
+      .metric-card small {
+        display: block;
+        margin-top: 4px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+
+      .formula-note {
+        white-space: pre-line;
+        line-height: 1.45;
+      }
+
+      .charts {
+        margin-top: 12px;
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 12px;
+      }
+
+      .chart-wrap {
+        position: relative;
+        min-height: 260px;
+      }
+
+      @media (max-width: 960px) {
+        .layout,
+        .charts {
+          grid-template-columns: 1fr;
+        }
+
+        .text-box {
+          min-height: 280px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <h1>原稿メトリクス診断</h1>
+      <p class="desc">台詞バランス・読みやすさ・章別の波を同時に確認できます。</p>
+
+      <div class="layout">
+        <section class="editor-card">
+          <label for="textInput">テキスト入力</label>
+          <textarea
+            id="textInput"
+            class="text-box"
+            placeholder="原稿テキストを貼り付けるか、下のファイル読込から読み込んでください。"
+          ></textarea>
+
+          <div class="controls">
+            <div class="control-row">
+              <div class="control-group">
+                <label for="chapterMode">章区切り</label>
+                <select id="chapterMode">
+                  <option value="heading"># 見出し行</option>
+                  <option value="diamond">◆ 行</option>
+                  <option value="double-blank">空行2連続</option>
+                  <option value="custom">任意の区切り文字</option>
+                </select>
+              </div>
+              <div class="control-group">
+                <label for="customDelimiter">任意区切り文字</label>
+                <input id="customDelimiter" type="text" placeholder="例: ===CHAPTER===" disabled />
+              </div>
+            </div>
+
+            <label class="inline-check">
+              <input id="asciiDialogueToggle" type="checkbox" />
+              半角引用符 "..." も台詞として判定
+            </label>
+
+            <div class="control-row">
+              <div class="control-group">
+                <label for="fileInput">ファイル読込（.txt）</label>
+                <input id="fileInput" type="file" accept=".txt,text/plain" />
+              </div>
+              <div class="actions">
+                <button id="clearBtn" type="button">クリア</button>
+              </div>
+            </div>
+            <p class="hint" id="chapterHint">章数: 0 / 判定: 「…」「『…』」</p>
+            <p class="hint">※ スコアは目安です。章ごとの相対差を見る用途を想定しています。</p>
+          </div>
+        </section>
+
+        <section class="stats-panel" aria-label="診断ダッシュボード">
+          <h2 class="stats-title">診断ダッシュボード</h2>
+          <div class="pane-grid">
+            <article class="pane">
+              <h3>A. 台詞・地の文</h3>
+              <div class="metrics-grid">
+                <dl class="metric-card">
+                  <dt>台詞文字数比率</dt>
+                  <dd id="dialogueCharRatio">0%</dd>
+                </dl>
+                <dl class="metric-card">
+                  <dt>台詞行数比率</dt>
+                  <dd id="dialogueLineRatio">0%</dd>
+                </dl>
+                <dl class="metric-card">
+                  <dt>平均台詞行長</dt>
+                  <dd id="avgDialogueLen">0</dd>
+                  <small>文字/行</small>
+                </dl>
+                <dl class="metric-card">
+                  <dt>平均地の文行長</dt>
+                  <dd id="avgNarrativeLen">0</dd>
+                  <small>文字/行</small>
+                </dl>
+              </div>
+            </article>
+
+            <article class="pane">
+              <h3>B. 読みやすさ（軽量メトリクス）</h3>
+              <div class="metrics-grid">
+                <dl class="metric-card">
+                  <dt>1文平均文字数 / 中央値</dt>
+                  <dd id="sentenceLenStats">0 / 0</dd>
+                </dl>
+                <dl class="metric-card">
+                  <dt>長文割合（80字以上）</dt>
+                  <dd id="longSentenceRatio">0%</dd>
+                </dl>
+                <dl class="metric-card">
+                  <dt>句読点密度（/100字）</dt>
+                  <dd id="punctDensity">0.00</dd>
+                </dl>
+                <dl class="metric-card">
+                  <dt>改行密度（/100字）</dt>
+                  <dd id="newlineDensity">0.00</dd>
+                </dl>
+                <dl class="metric-card">
+                  <dt>漢字率</dt>
+                  <dd id="kanjiRatio">0%</dd>
+                </dl>
+                <dl class="metric-card">
+                  <dt>ひらがな率 / カタカナ率</dt>
+                  <dd id="kanaRatios">0% / 0%</dd>
+                </dl>
+              </div>
+            </article>
+
+            <article class="pane">
+              <h3>C. 合成スコア（目安）</h3>
+              <div class="metrics-grid">
+                <dl class="metric-card">
+                  <dt>テンポ指数</dt>
+                  <dd id="tempoIndex">0</dd>
+                  <small id="tempoDelta">章平均との差: 0.0</small>
+                </dl>
+                <dl class="metric-card">
+                  <dt>負荷指数</dt>
+                  <dd id="loadIndex">0</dd>
+                  <small id="loadDelta">章平均との差: 0.0</small>
+                </dl>
+                <dl class="metric-card">
+                  <dt>文学度</dt>
+                  <dd id="literaryScore">0%</dd>
+                  <small class="formula-note" id="literaryFormula">計算式を表示します。</small>
+                </dl>
+                <dl class="metric-card">
+                  <dt>ライトノベル度</dt>
+                  <dd id="lightNovelScore">0%</dd>
+                  <small class="formula-note" id="lightNovelFormula">計算式を表示します。</small>
+                </dl>
+                <dl class="metric-card">
+                  <dt>Web小説度</dt>
+                  <dd id="webNovelScore">0%</dd>
+                  <small class="formula-note" id="webNovelFormula">計算式を表示します。</small>
+                </dl>
+                <dl class="metric-card">
+                  <dt>傾向判定</dt>
+                  <dd id="styleJudge">-</dd>
+                  <small>台詞・地の文 + 読みやすさから算出した目安</small>
+                </dl>
+              </div>
+            </article>
+          </div>
+        </section>
+      </div>
+
+      <section class="charts">
+        <article class="chart-card">
+          <h2 class="section-title">章別推移（台詞比率 / テンポ指数 / 負荷指数）</h2>
+          <div class="chart-wrap">
+            <canvas id="chapterTrendChart"></canvas>
+          </div>
+        </article>
+        <article class="chart-card">
+          <h2 class="section-title">連続台詞の長さ分布</h2>
+          <div class="chart-wrap">
+            <canvas id="dialogueRunChart"></canvas>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script>
+      const textInput = document.getElementById("textInput");
+      const chapterMode = document.getElementById("chapterMode");
+      const customDelimiter = document.getElementById("customDelimiter");
+      const asciiDialogueToggle = document.getElementById("asciiDialogueToggle");
+      const fileInput = document.getElementById("fileInput");
+      const clearBtn = document.getElementById("clearBtn");
+      const chapterHint = document.getElementById("chapterHint");
+
+      const tempoDeltaEl = document.getElementById("tempoDelta");
+      const loadDeltaEl = document.getElementById("loadDelta");
+
+      let chapterTrendChart = null;
+      let dialogueRunChart = null;
+
+      const HAN_RE = /\p{Script=Han}/u;
+      const HIRAGANA_RE = /\p{Script=Hiragana}/u;
+      const KATAKANA_RE = /\p{Script=Katakana}/u;
+      const SENTENCE_END_RE = /[。！？!?]/u;
+      const WHITESPACE_RE = /[\s\u3000]/u;
+      const STYLE_WEIGHTS = {
+        dialogue: 1.2,
+        newline: 0.9,
+        shortness: 1.0,
+        heavy: 1.1,
+        kanji: 1.0,
+        tempo: 1.2,
+      };
+      const STYLE_KEYS = ["dialogue", "newline", "shortness", "heavy", "kanji", "tempo"];
+      const STYLE_KEY_LABELS = {
+        dialogue: "台詞",
+        newline: "改行",
+        shortness: "短文",
+        heavy: "負荷",
+        kanji: "漢字",
+        tempo: "テンポ",
+      };
+      const STYLE_DEFS = [
+        {
+          key: "literary",
+          label: "文学寄り",
+          target: {
+            dialogue: 0.2,
+            newline: 0.18,
+            shortness: 0.28,
+            heavy: 0.72,
+            kanji: 0.72,
+            tempo: 0.35,
+          },
+        },
+        {
+          key: "lightNovel",
+          label: "ライトノベル寄り",
+          target: {
+            dialogue: 0.42,
+            newline: 0.35,
+            shortness: 0.58,
+            heavy: 0.38,
+            kanji: 0.45,
+            tempo: 0.64,
+          },
+        },
+        {
+          key: "webNovel",
+          label: "Web小説寄り",
+          target: {
+            dialogue: 0.56,
+            newline: 0.62,
+            shortness: 0.72,
+            heavy: 0.25,
+            kanji: 0.34,
+            tempo: 0.82,
+          },
+        },
+      ];
+      const STYLE_FORMULA_IDS = {
+        literary: "literaryFormula",
+        lightNovel: "lightNovelFormula",
+        webNovel: "webNovelFormula",
+      };
+
+      function normalizeNewlines(text) {
+        return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      }
+
+      function countChars(text) {
+        return Array.from(text).length;
+      }
+
+      function escapeRegExp(value) {
+        return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      }
+
+      function formatPercent(value) {
+        return `${(value * 100).toFixed(1)}%`;
+      }
+
+      function formatNumber(value, fractionDigits = 1) {
+        return Number(value).toLocaleString("ja-JP", {
+          minimumFractionDigits: fractionDigits,
+          maximumFractionDigits: fractionDigits,
+        });
+      }
+
+      function median(values) {
+        if (values.length === 0) return 0;
+        const sorted = [...values].sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        if (sorted.length % 2 === 0) {
+          return (sorted[mid - 1] + sorted[mid]) / 2;
+        }
+        return sorted[mid];
+      }
+
+      function makeChapterTitle(index, rawTitle) {
+        if (rawTitle && rawTitle.trim().length > 0) {
+          return rawTitle.trim();
+        }
+        return `章 ${index + 1}`;
+      }
+
+      function splitByLineMarkers(text, markerFn) {
+        const lines = text.split("\n");
+        const chapters = [];
+        let currentLines = [];
+        let currentTitle = "";
+        let foundMarker = false;
+
+        for (const line of lines) {
+          const marker = markerFn(line);
+          if (marker !== null) {
+            foundMarker = true;
+            if (currentLines.join("\n").trim().length > 0 || currentTitle) {
+              chapters.push({ title: currentTitle, text: currentLines.join("\n").trim() });
+            }
+            currentTitle = marker;
+            currentLines = [];
+            continue;
+          }
+          currentLines.push(line);
+        }
+
+        if (currentLines.join("\n").trim().length > 0 || currentTitle) {
+          chapters.push({ title: currentTitle, text: currentLines.join("\n").trim() });
+        }
+
+        if (!foundMarker) {
+          const trimmed = text.trim();
+          return trimmed ? [{ title: "章 1", text: trimmed }] : [];
+        }
+
+        return chapters
+          .map((chapter, idx) => ({
+            title: makeChapterTitle(idx, chapter.title),
+            text: chapter.text,
+          }))
+          .filter((chapter) => chapter.text.length > 0);
+      }
+
+      function splitChapters(text, mode, custom) {
+        if (!text.trim()) return [];
+
+        if (mode === "heading") {
+          return splitByLineMarkers(text, (line) => {
+            const match = line.match(/^\s*#{1,6}\s*(.+)\s*$/u);
+            return match ? match[1] : null;
+          });
+        }
+
+        if (mode === "diamond") {
+          return splitByLineMarkers(text, (line) => {
+            const match = line.match(/^\s*◆\s*(.*)$/u);
+            return match ? match[1] : null;
+          });
+        }
+
+        if (mode === "double-blank") {
+          return text
+            .split(/\n\s*\n+/u)
+            .map((part) => part.trim())
+            .filter((part) => part.length > 0)
+            .map((part, idx) => ({ title: `章 ${idx + 1}`, text: part }));
+        }
+
+        if (mode === "custom") {
+          const delimiter = custom.trim();
+          if (!delimiter) return [{ title: "章 1", text: text.trim() }];
+          const parts = text
+            .split(new RegExp(escapeRegExp(delimiter), "u"))
+            .map((part) => part.trim())
+            .filter((part) => part.length > 0);
+          if (parts.length === 0) return [];
+          return parts.map((part, idx) => ({ title: `章 ${idx + 1}`, text: part }));
+        }
+
+        return [{ title: "章 1", text: text.trim() }];
+      }
+
+      function analyzeDialogue(text, includeAsciiQuotes) {
+        const chars = Array.from(text);
+        const marks = [];
+        const stack = [];
+        const pairs = new Map([
+          ["「", "」"],
+          ["『", "』"],
+        ]);
+        let asciiOpen = false;
+
+        for (const ch of chars) {
+          if (includeAsciiQuotes && ch === '"') {
+            marks.push(true);
+            asciiOpen = !asciiOpen;
+            continue;
+          }
+
+          if (pairs.has(ch)) {
+            marks.push(true);
+            stack.push(pairs.get(ch));
+            continue;
+          }
+
+          const inDialogue = asciiOpen || stack.length > 0;
+          marks.push(inDialogue);
+          if (stack.length > 0 && ch === stack[stack.length - 1]) {
+            stack.pop();
+          }
+        }
+
+        let dialogueChars = 0;
+        let narrationChars = 0;
+
+        let dialogueLines = 0;
+        let narrationLines = 0;
+        let dialogueLineCharsSum = 0;
+        let narrationLineCharsSum = 0;
+        const dialogueLineFlags = [];
+
+        let currentLineTotal = 0;
+        let currentLineDialogue = 0;
+
+        function closeLine() {
+          if (currentLineTotal === 0) return;
+          const isDialogueLine = currentLineDialogue / currentLineTotal >= 0.5;
+          dialogueLineFlags.push(isDialogueLine);
+          if (isDialogueLine) {
+            dialogueLines += 1;
+            dialogueLineCharsSum += currentLineTotal;
+          } else {
+            narrationLines += 1;
+            narrationLineCharsSum += currentLineTotal;
+          }
+          currentLineTotal = 0;
+          currentLineDialogue = 0;
+        }
+
+        for (let i = 0; i < chars.length; i += 1) {
+          const ch = chars[i];
+          const isWhitespace = WHITESPACE_RE.test(ch);
+          const isDialogue = marks[i];
+
+          if (!isWhitespace) {
+            if (isDialogue) {
+              dialogueChars += 1;
+              currentLineDialogue += 1;
+            } else {
+              narrationChars += 1;
+            }
+            currentLineTotal += 1;
+          }
+
+          if (ch === "\n") {
+            closeLine();
+          }
+        }
+        closeLine();
+
+        const dialogueRuns = [];
+        let run = 0;
+        for (const isDialogueLine of dialogueLineFlags) {
+          if (isDialogueLine) {
+            run += 1;
+          } else if (run > 0) {
+            dialogueRuns.push(run);
+            run = 0;
+          }
+        }
+        if (run > 0) dialogueRuns.push(run);
+
+        return {
+          dialogueChars,
+          narrationChars,
+          dialogueLines,
+          narrationLines,
+          avgDialogueLineLen: dialogueLines === 0 ? 0 : dialogueLineCharsSum / dialogueLines,
+          avgNarrationLineLen: narrationLines === 0 ? 0 : narrationLineCharsSum / narrationLines,
+          dialogueRuns,
+        };
+      }
+
+      function splitSentences(text) {
+        const sentences = [];
+        let buffer = "";
+        for (const ch of Array.from(text)) {
+          if (ch === "\n") {
+            if (buffer.trim()) {
+              sentences.push(buffer.trim());
+            }
+            buffer = "";
+            continue;
+          }
+          buffer += ch;
+          if (SENTENCE_END_RE.test(ch)) {
+            if (buffer.trim()) {
+              sentences.push(buffer.trim());
+            }
+            buffer = "";
+          }
+        }
+        if (buffer.trim()) {
+          sentences.push(buffer.trim());
+        }
+        return sentences;
+      }
+
+      function analyzeReadability(text, dialogueRatio) {
+        const chars = Array.from(text);
+        const contentChars = chars.filter((ch) => !WHITESPACE_RE.test(ch));
+        const totalContentChars = contentChars.length;
+        const newlineCount = chars.filter((ch) => ch === "\n").length;
+        const punctuationCount = chars.filter((ch) => ch === "、" || ch === "。").length;
+
+        const kanjiCount = contentChars.filter((ch) => HAN_RE.test(ch)).length;
+        const hiraganaCount = contentChars.filter((ch) => HIRAGANA_RE.test(ch)).length;
+        const katakanaCount = contentChars.filter((ch) => KATAKANA_RE.test(ch)).length;
+
+        const sentences = splitSentences(text);
+        const sentenceLengths = sentences
+          .map((sentence) => countChars(sentence.replace(/[\s\u3000]/gu, "")))
+          .filter((len) => len > 0);
+
+        const sentenceCount = sentenceLengths.length;
+        const sumSentenceLen = sentenceLengths.reduce((sum, len) => sum + len, 0);
+        const avgSentenceLen = sentenceCount === 0 ? 0 : sumSentenceLen / sentenceCount;
+        const medianSentenceLen = median(sentenceLengths);
+        const longSentenceCount = sentenceLengths.filter((len) => len >= 80).length;
+        const shortSentenceCount = sentenceLengths.filter((len) => len <= 40).length;
+        const longSentenceRate = sentenceCount === 0 ? 0 : longSentenceCount / sentenceCount;
+        const shortSentenceRate = sentenceCount === 0 ? 0 : shortSentenceCount / sentenceCount;
+
+        const punctuationDensity = totalContentChars === 0 ? 0 : (punctuationCount / totalContentChars) * 100;
+        const newlineDensity = totalContentChars === 0 ? 0 : (newlineCount / totalContentChars) * 100;
+        const kanjiRatio = totalContentChars === 0 ? 0 : kanjiCount / totalContentChars;
+        const hiraganaRatio = totalContentChars === 0 ? 0 : hiraganaCount / totalContentChars;
+        const katakanaRatio = totalContentChars === 0 ? 0 : katakanaCount / totalContentChars;
+
+        const punctuationShortage = totalContentChars === 0 ? 0 : Math.max(0, 4 - punctuationDensity) / 4;
+
+        const tempoIndex =
+          clamp01(shortSentenceRate * 0.45 + Math.min(newlineDensity / 12, 1) * 0.2 + dialogueRatio * 0.35) * 100;
+        const loadIndex =
+          clamp01(longSentenceRate * 0.45 + kanjiRatio * 0.35 + punctuationShortage * 0.2) * 100;
+
+        return {
+          avgSentenceLen,
+          medianSentenceLen,
+          longSentenceRate,
+          punctuationDensity,
+          newlineDensity,
+          kanjiRatio,
+          hiraganaRatio,
+          katakanaRatio,
+          tempoIndex,
+          loadIndex,
+        };
+      }
+
+      function clamp01(value) {
+        if (Number.isNaN(value)) return 0;
+        if (value < 0) return 0;
+        if (value > 1) return 1;
+        return value;
+      }
+
+      function buildStyleFormula(style) {
+        const targetText = STYLE_KEYS.map(
+          (key) => `${STYLE_KEY_LABELS[key]}${style.target[key].toFixed(2)}`
+        ).join(" / ");
+        const weightTotal = Object.values(STYLE_WEIGHTS).reduce((sum, value) => sum + value, 0);
+        return `目標: ${targetText}\n式: 度=(1-Σ|特徴-目標|×重み/${weightTotal.toFixed(
+          1
+        )}) を3分類で正規化`;
+      }
+
+      function updateStyleFormulaDisplay() {
+        for (const style of STYLE_DEFS) {
+          const elementId = STYLE_FORMULA_IDS[style.key];
+          if (!elementId) continue;
+          setText(elementId, buildStyleFormula(style));
+        }
+      }
+
+      function calculateStyleScores(metrics) {
+        const features = {
+          dialogue: clamp01(metrics.dialogueCharRatio),
+          newline: clamp01(metrics.newlineDensity / 10),
+          shortness: clamp01(1 - metrics.avgSentenceLen / 90),
+          heavy: clamp01(metrics.loadIndex / 100),
+          kanji: clamp01(metrics.kanjiRatio / 0.5),
+          tempo: clamp01(metrics.tempoIndex / 100),
+        };
+
+        const weightTotal = Object.values(STYLE_WEIGHTS).reduce((sum, value) => sum + value, 0);
+        const rawScores = STYLE_DEFS.map((style) => {
+          let distance = 0;
+          for (const key of STYLE_KEYS) {
+            distance += Math.abs(features[key] - style.target[key]) * STYLE_WEIGHTS[key];
+          }
+          return { key: style.key, label: style.label, raw: Math.max(0, 1 - distance / weightTotal) };
+        });
+
+        const rawTotal = rawScores.reduce((sum, style) => sum + style.raw, 0);
+        const normalized = rawScores.map((style) => ({
+          ...style,
+          score: rawTotal === 0 ? 0 : (style.raw / rawTotal) * 100,
+        }));
+        const dominant = normalized.reduce((best, current) => (current.score > best.score ? current : best), normalized[0]);
+
+        return {
+          literary: normalized.find((style) => style.key === "literary").score,
+          lightNovel: normalized.find((style) => style.key === "lightNovel").score,
+          webNovel: normalized.find((style) => style.key === "webNovel").score,
+          label: dominant.label,
+        };
+      }
+
+      function analyzeText(text, includeAsciiQuotes) {
+        const dialogue = analyzeDialogue(text, includeAsciiQuotes);
+        const totalChars = dialogue.dialogueChars + dialogue.narrationChars;
+        const totalLines = dialogue.dialogueLines + dialogue.narrationLines;
+        const dialogueCharRatio = totalChars === 0 ? 0 : dialogue.dialogueChars / totalChars;
+        const dialogueLineRatio = totalLines === 0 ? 0 : dialogue.dialogueLines / totalLines;
+        const readability = analyzeReadability(text, dialogueCharRatio);
+
+        return {
+          dialogueCharRatio,
+          dialogueLineRatio,
+          avgDialogueLineLen: dialogue.avgDialogueLineLen,
+          avgNarrationLineLen: dialogue.avgNarrationLineLen,
+          dialogueRuns: dialogue.dialogueRuns,
+          ...readability,
+        };
+      }
+
+      function chapterRunDistribution(chapters, includeAsciiQuotes) {
+        const buckets = [0, 0, 0, 0, 0, 0];
+        for (const chapter of chapters) {
+          const result = analyzeDialogue(chapter.text, includeAsciiQuotes);
+          for (const runLen of result.dialogueRuns) {
+            if (runLen >= 6) {
+              buckets[5] += 1;
+            } else {
+              buckets[runLen - 1] += 1;
+            }
+          }
+        }
+        return buckets;
+      }
+
+      function setText(id, value) {
+        document.getElementById(id).textContent = value;
+      }
+
+      function updateSummaryDisplay(overall, chapterMetrics) {
+        setText("dialogueCharRatio", formatPercent(overall.dialogueCharRatio));
+        setText("dialogueLineRatio", formatPercent(overall.dialogueLineRatio));
+        setText("avgDialogueLen", formatNumber(overall.avgDialogueLineLen, 1));
+        setText("avgNarrativeLen", formatNumber(overall.avgNarrationLineLen, 1));
+        setText(
+          "sentenceLenStats",
+          `${formatNumber(overall.avgSentenceLen, 1)} / ${formatNumber(overall.medianSentenceLen, 1)}`
+        );
+        setText("longSentenceRatio", formatPercent(overall.longSentenceRate));
+        setText("punctDensity", formatNumber(overall.punctuationDensity, 2));
+        setText("newlineDensity", formatNumber(overall.newlineDensity, 2));
+        setText("kanjiRatio", formatPercent(overall.kanjiRatio));
+        setText(
+          "kanaRatios",
+          `${formatPercent(overall.hiraganaRatio)} / ${formatPercent(overall.katakanaRatio)}`
+        );
+        setText("tempoIndex", formatNumber(overall.tempoIndex, 1));
+        setText("loadIndex", formatNumber(overall.loadIndex, 1));
+        const styleScores = calculateStyleScores(overall);
+        setText("literaryScore", `${formatNumber(styleScores.literary, 1)}%`);
+        setText("lightNovelScore", `${formatNumber(styleScores.lightNovel, 1)}%`);
+        setText("webNovelScore", `${formatNumber(styleScores.webNovel, 1)}%`);
+        setText("styleJudge", styleScores.label);
+
+        const chapterTempoAvg =
+          chapterMetrics.length === 0
+            ? overall.tempoIndex
+            : chapterMetrics.reduce((sum, item) => sum + item.tempoIndex, 0) / chapterMetrics.length;
+        const chapterLoadAvg =
+          chapterMetrics.length === 0
+            ? overall.loadIndex
+            : chapterMetrics.reduce((sum, item) => sum + item.loadIndex, 0) / chapterMetrics.length;
+        const tempoDelta = overall.tempoIndex - chapterTempoAvg;
+        const loadDelta = overall.loadIndex - chapterLoadAvg;
+
+        tempoDeltaEl.textContent = `章平均との差: ${tempoDelta >= 0 ? "+" : ""}${formatNumber(tempoDelta, 1)}`;
+        loadDeltaEl.textContent = `章平均との差: ${loadDelta >= 0 ? "+" : ""}${formatNumber(loadDelta, 1)}`;
+      }
+
+      function ensureChapterTrendChart() {
+        if (chapterTrendChart) return chapterTrendChart;
+        chapterTrendChart = new Chart(document.getElementById("chapterTrendChart"), {
+          type: "line",
+          data: {
+            labels: [],
+            datasets: [
+              {
+                label: "台詞文字数比率(%)",
+                data: [],
+                borderColor: "#0f766e",
+                backgroundColor: "rgba(15, 118, 110, 0.2)",
+                yAxisID: "y",
+                tension: 0.2,
+              },
+              {
+                label: "テンポ指数",
+                data: [],
+                borderColor: "#2563eb",
+                backgroundColor: "rgba(37, 99, 235, 0.2)",
+                yAxisID: "y",
+                tension: 0.2,
+              },
+              {
+                label: "負荷指数",
+                data: [],
+                borderColor: "#dc2626",
+                backgroundColor: "rgba(220, 38, 38, 0.2)",
+                yAxisID: "y",
+                tension: 0.2,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: {
+                min: 0,
+                max: 100,
+              },
+            },
+            plugins: {
+              legend: {
+                position: "bottom",
+              },
+            },
+          },
+        });
+        return chapterTrendChart;
+      }
+
+      function ensureDialogueRunChart() {
+        if (dialogueRunChart) return dialogueRunChart;
+        dialogueRunChart = new Chart(document.getElementById("dialogueRunChart"), {
+          type: "bar",
+          data: {
+            labels: ["1行", "2行", "3行", "4行", "5行", "6行以上"],
+            datasets: [
+              {
+                label: "連続回数",
+                data: [0, 0, 0, 0, 0, 0],
+                backgroundColor: "#0f766e",
+                borderRadius: 6,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: false,
+              },
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  precision: 0,
+                },
+              },
+            },
+          },
+        });
+        return dialogueRunChart;
+      }
+
+      function updateCharts(chapterMetrics, runBuckets) {
+        const trend = ensureChapterTrendChart();
+        const labels = chapterMetrics.map((item) => item.title);
+        trend.data.labels = labels.length > 0 ? labels : ["章 1"];
+        trend.data.datasets[0].data =
+          labels.length > 0 ? chapterMetrics.map((item) => item.dialogueCharRatio * 100) : [0];
+        trend.data.datasets[1].data = labels.length > 0 ? chapterMetrics.map((item) => item.tempoIndex) : [0];
+        trend.data.datasets[2].data = labels.length > 0 ? chapterMetrics.map((item) => item.loadIndex) : [0];
+        trend.update();
+
+        const run = ensureDialogueRunChart();
+        run.data.datasets[0].data = runBuckets;
+        run.update();
+      }
+
+      function collectChapterMetrics(chapters, includeAsciiQuotes) {
+        return chapters.map((chapter) => ({
+          title: chapter.title,
+          ...analyzeText(chapter.text, includeAsciiQuotes),
+        }));
+      }
+
+      function updateHint(chapterCount, includeAsciiQuotes) {
+        const quoteModes = includeAsciiQuotes ? "「…」「『…』」「\"...\"」" : "「…」「『…』";
+        chapterHint.textContent = `章数: ${chapterCount} / 判定: ${quoteModes}`;
+      }
+
+      function updateCustomDelimiterState() {
+        customDelimiter.disabled = chapterMode.value !== "custom";
+      }
+
+      function refresh() {
+        const text = normalizeNewlines(textInput.value);
+        const includeAsciiQuotes = asciiDialogueToggle.checked;
+        const chapters = splitChapters(text, chapterMode.value, customDelimiter.value);
+        const overall = analyzeText(text, includeAsciiQuotes);
+        const chapterMetrics = collectChapterMetrics(chapters, includeAsciiQuotes);
+        const runBuckets = chapterRunDistribution(chapters, includeAsciiQuotes);
+
+        updateSummaryDisplay(overall, chapterMetrics);
+        updateCharts(chapterMetrics, runBuckets);
+        updateHint(chapters.length, includeAsciiQuotes);
+      }
+
+      textInput.addEventListener("input", refresh);
+      chapterMode.addEventListener("change", () => {
+        updateCustomDelimiterState();
+        refresh();
+      });
+      customDelimiter.addEventListener("input", refresh);
+      asciiDialogueToggle.addEventListener("change", refresh);
+
+      fileInput.addEventListener("change", () => {
+        const [file] = fileInput.files || [];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          textInput.value = typeof reader.result === "string" ? reader.result : "";
+          refresh();
+        };
+        reader.readAsText(file, "utf-8");
+      });
+
+      clearBtn.addEventListener("click", () => {
+        textInput.value = "";
+        fileInput.value = "";
+        refresh();
+        textInput.focus();
+      });
+
+      updateStyleFormulaDisplay();
+      updateCustomDelimiterState();
+      refresh();
+    </script>
+  </body>
+</html>
