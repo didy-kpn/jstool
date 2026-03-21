@@ -6,6 +6,11 @@ const tools = [
     description: "リアルタイム文字数カウント",
   },
   {
+    name: "edit-str",
+    href: "./edit-str/index.html",
+    description: "小説向けの簡易整形ツール",
+  },
+  {
     name: "manuscript-metrics",
     href: "./manuscript-metrics/index.html",
     description: "原稿メトリクス診断（台詞比率・読みやすさ・章別推移）",

@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Edit Str</title>
+    <style>
+      :root {
+        --bg: #f5f7fb;
+        --card: #ffffff;
+        --text: #1f2937;
+        --muted: #6b7280;
+        --line: #d1d5db;
+        --accent: #0f766e;
+        --gh-border: #d0d7de;
+        --gh-text: #24292f;
+        --gh-muted: #57606a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+        background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 35%);
+        color: var(--text);
+      }
+
+      .container {
+        max-width: 1040px;
+        margin: 0 auto;
+        padding: 24px 16px 48px;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 24px;
+      }
+
+      .desc {
+        margin: 0 0 16px;
+        color: var(--muted);
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        align-items: stretch;
+      }
+
+      .panel {
+        background: var(--card);
+        border: 1px solid var(--gh-border);
+        border-radius: 8px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .panel label,
+      .section-title {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 13px;
+        color: var(--gh-muted);
+      }
+
+      .text-box {
+        width: 100%;
+        min-height: 420px;
+        flex: 1;
+        border: 1px solid var(--gh-border);
+        border-radius: 8px;
+        padding: 10px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 14px;
+        line-height: 1.6;
+        resize: vertical;
+      }
+
+      .output-box {
+        background: #fbfdff;
+      }
+
+      .controls {
+        display: grid;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      .control-group {
+        border: 1px solid var(--gh-border);
+        border-radius: 8px;
+        padding: 12px;
+        background: var(--card);
+      }
+
+      .control-group p {
+        margin: 0 0 10px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .inline-controls {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      select,
+      button {
+        border: 1px solid var(--line);
+        background: var(--card);
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-size: 14px;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      button:hover,
+      select:hover {
+        border-color: #9ca3af;
+      }
+
+      button.primary {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      .actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+        flex-wrap: wrap;
+      }
+
+      .hint,
+      .status {
+        margin: 10px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      @media (max-width: 800px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .text-box {
+          min-height: 280px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <h1>Edit Str</h1>
+      <p class="desc">小説向けの簡易整形ツールです。左で入力し、右で整形結果を確認します。</p>
+
+      <div class="layout">
+        <section class="panel">
+          <label for="textInput">テキスト入力</label>
+          <textarea
+            id="textInput"
+            class="text-box"
+            placeholder="ここに小説本文を入力してください。"
+          ></textarea>
+          <div class="actions">
+            <button id="clearBtn" type="button">クリア</button>
+            <button id="resetOutputBtn" type="button">出力を入力に合わせる</button>
+          </div>
+          <p class="hint">整形ボタンは左の入力欄を元に結果を更新します。</p>
+        </section>
+
+        <section class="panel" aria-label="編集内容">
+          <div class="controls">
+            <div class="control-group">
+              <span class="section-title">不要な段落を削除</span>
+              <p>空行だけの段落を詰めて、本文の流れを連続させます。</p>
+              <div class="inline-controls">
+                <button id="trimParagraphBtn" class="primary" type="button">不要な段落を削除</button>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <label class="section-title" for="bracketSelect">指定した括弧以外を削除</label>
+              <p>残したい括弧を複数選択できます。選択されていない対応括弧文字を削除します。</p>
+              <div class="inline-controls">
+                <select id="bracketSelect" multiple size="8">
+                  <option value="kakko">「」だけ残す</option>
+                  <option value="doubleKakko">『』だけ残す</option>
+                  <option value="maruFull">（）だけ残す</option>
+                  <option value="maruHalf">()だけ残す</option>
+                  <option value="angle">〈〉だけ残す</option>
+                  <option value="doubleAngle">《》だけ残す</option>
+                  <option value="square">【】だけ残す</option>
+                  <option value="tortoise">〔〕だけ残す</option>
+                  <option value="singleQuote">'だけ残す</option>
+                  <option value="doubleQuote">"だけ残す</option>
+                  <option value="backtick">`だけ残す</option>
+                  <option value="tilde">~だけ残す</option>
+                  <option value="asterisk">*だけ残す</option>
+                  <option value="plus">+だけ残す</option>
+                </select>
+                <button id="filterBracketBtn" type="button">括弧を整形</button>
+              </div>
+            </div>
+          </div>
+
+          <label for="outputText">編集内容</label>
+          <textarea id="outputText" class="text-box output-box" readonly></textarea>
+          <div class="actions">
+            <button id="copyBtn" type="button">結果をコピー</button>
+          </div>
+          <p id="status" class="status">入力内容をそのまま表示しています。</p>
+        </section>
+      </div>
+    </main>
+
+    <script>
+      const textInput = document.getElementById("textInput");
+      const outputText = document.getElementById("outputText");
+      const clearBtn = document.getElementById("clearBtn");
+      const resetOutputBtn = document.getElementById("resetOutputBtn");
+      const trimParagraphBtn = document.getElementById("trimParagraphBtn");
+      const filterBracketBtn = document.getElementById("filterBracketBtn");
+      const bracketSelect = document.getElementById("bracketSelect");
+      const copyBtn = document.getElementById("copyBtn");
+      const status = document.getElementById("status");
+
+      const bracketGroups = {
+        kakko: ["「", "」"],
+        doubleKakko: ["『", "』"],
+        maruFull: ["（", "）"],
+        maruHalf: ["(", ")"],
+        angle: ["〈", "〉"],
+        doubleAngle: ["《", "》"],
+        square: ["【", "】"],
+        tortoise: ["〔", "〕"],
+        singleQuote: ["'"],
+        doubleQuote: ['"'],
+        backtick: ["`"],
+        tilde: ["~"],
+        asterisk: ["*"],
+        plus: ["+"],
+      };
+
+      const allBracketChars = Object.values(bracketGroups).flat();
+
+      function normalizeNewlines(text) {
+        return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      }
+
+      function syncOutputWithInput() {
+        outputText.value = normalizeNewlines(textInput.value);
+        status.textContent = "入力内容をそのまま表示しています。";
+      }
+
+      function getWorkingText() {
+        return outputText.value || normalizeNewlines(textInput.value);
+      }
+
+      function removeEmptyParagraphs(text) {
+        return normalizeNewlines(text)
+          .replace(/\n[ \t\u3000]*\n+/gu, "\n")
+          .trim();
+      }
+
+      function getSelectedBracketKeys() {
+        return Array.from(bracketSelect.selectedOptions, (option) => option.value);
+      }
+
+      function removeOtherBrackets(text, keepKeys) {
+        const keepChars = new Set(
+          keepKeys.flatMap((key) => bracketGroups[key] || [])
+        );
+        return Array.from(normalizeNewlines(text))
+          .filter((char) => !allBracketChars.includes(char) || keepChars.has(char))
+          .join("");
+      }
+
+      async function copyResult() {
+        try {
+          await navigator.clipboard.writeText(outputText.value);
+          status.textContent = "編集内容をコピーしました。";
+        } catch (_error) {
+          status.textContent = "コピーに失敗しました。ブラウザの権限を確認してください。";
+        }
+      }
+
+      textInput.addEventListener("input", syncOutputWithInput);
+
+      clearBtn.addEventListener("click", () => {
+        textInput.value = "";
+        syncOutputWithInput();
+      });
+
+      resetOutputBtn.addEventListener("click", syncOutputWithInput);
+
+      trimParagraphBtn.addEventListener("click", () => {
+        outputText.value = removeEmptyParagraphs(getWorkingText());
+        status.textContent = "不要な段落を削除しました。";
+      });
+
+      filterBracketBtn.addEventListener("click", () => {
+        const selectedKeys = getSelectedBracketKeys();
+
+        if (selectedKeys.length === 0) {
+          outputText.value = normalizeNewlines(textInput.value);
+          status.textContent = "括弧削除は適用せず、入力内容を表示しています。";
+          return;
+        }
+
+        outputText.value = removeOtherBrackets(getWorkingText(), selectedKeys);
+        status.textContent = "選択した括弧以外を削除しました。";
+      });
+
+      copyBtn.addEventListener("click", copyResult);
+
+      syncOutputWithInput();
+    </script>
+  </body>
+</html>
